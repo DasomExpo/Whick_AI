@@ -95,16 +95,16 @@ with mp_face_mesh.FaceMesh(
                         if yaw <= -160 or yaw >= 160:
                             direction = "front"
                         elif yaw < 0:
-                            if yaw > -110:
+                            if yaw > -115:
                                 direction = "left++"
-                            elif yaw > -140:
+                            elif yaw > -145:
                                 direction = "left+"
                             elif yaw > -160:
                                 direction = "left"
                         else:
-                            if yaw < 110:
+                            if yaw < 115:
                                 direction = "right++"
-                            elif yaw < 140:
+                            elif yaw < 145:
                                 direction = "right+"
                             elif yaw < 160:
                                 direction = "right"     
