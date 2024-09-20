@@ -24,7 +24,9 @@ with mp_face_mesh.FaceMesh(
     eye_blink_start_time = None  # 눈을 감은 시점
     eye_blink_threshold = 0.007  # 눈이 감겼는지 판단할 임계값
     blink_duration = 0.5  # 눈이 감긴 상태를 감지할 지속 시간 (초)
-    
+    toggle_stop = False  # "stop" 상태 토글을 위한 플래그
+    head_up = False  # 고개를 들었는지 여부를 확인하는 플래그
+
     while cap.isOpened():
         success, image = cap.read()
         if not success:
@@ -40,6 +42,7 @@ with mp_face_mesh.FaceMesh(
 
         direction = "none"  # 초기화
         yaw = None  # yaw 초기화
+        pitch = None  # pitch 초기화
 
         if results.multi_face_landmarks:
             for face_landmarks in results.multi_face_landmarks:
@@ -68,14 +71,13 @@ with mp_face_mesh.FaceMesh(
                     
                     # 얼굴 중심 계산 (두 눈의 중간 지점)
                     face_center = (left_eye + right_eye) / 2
-                    center_x = int((left_eye_outer.x + right_eye_outer.x) / 2 * w)
-
-                    # 좌표 기준으로 얼굴의 회전 벡터 계산
                     face_vector = nose - face_center
                     face_vector /= np.linalg.norm(face_vector)  # 정규화
 
                     # 얼굴 회전 각도 계산
                     yaw = np.arctan2(face_vector[0], face_vector[2]) * 180 / np.pi
+                    pitch = np.arctan2(face_vector[1], face_vector[2]) * 180 / np.pi  # Pitch 각도 계산
+
 
                     # 왼쪽 눈 감김 계산
                     left_eye_dist = abs(left_eye_upper.y - left_eye_lower.y)
@@ -88,26 +90,40 @@ with mp_face_mesh.FaceMesh(
                             direction = "stop"
                     else:
                         eye_blink_start_time = None
-                        
+
+
+                    # 고개를 들었을 때
+                    if (pitch < -180 or pitch > 165) and not head_up:
+                        head_up = True  # 고개를 든 상태로 전환
+                        toggle_stop = not toggle_stop  # "stop" 상태를 토글
+
+                    # 고개를 내렸을 때
+                    elif (-180 <= pitch <= 160) and head_up:
+                        head_up = False  # 고개를 내린 상태로 전환
+
+                    # "stop" 상태일 때 "stop"으로 전환
+                    if toggle_stop:
+                        direction = "stop"                            
 
                     # 얼굴 방향 결정 (Yaw를 기준으로 설정)
-                    if direction not in ["stop", "unknown"]:
-                        if yaw <= -160 or yaw >= 160:
-                            direction = "front"
-                        elif yaw < 0:
-                            if yaw > -115:
-                                direction = "left++"
-                            elif yaw > -145:
-                                direction = "left+"
-                            elif yaw > -160:
-                                direction = "left"
-                        else:
-                            if yaw < 115:
-                                direction = "right++"
-                            elif yaw < 145:
-                                direction = "right+"
-                            elif yaw < 160:
-                                direction = "right"     
+                    if not toggle_stop:  # "stop" 상태가 해제된 경우에만 방향을 계산
+                        if direction not in ["stop", "unknown"]:
+                            if yaw <= -160 or yaw >= 160:
+                                direction = "front"
+                            elif yaw < 0:
+                                if yaw > -132:
+                                    direction = "left++"
+                                elif yaw > -145:
+                                    direction = "left+"
+                                elif yaw > -160:
+                                    direction = "left"
+                            else:
+                                if yaw < 132:
+                                    direction = "right++"
+                                elif yaw < 145:
+                                    direction = "right+"
+                                elif yaw < 160:
+                                    direction = "right"     
                 
 
                 except (IndexError, AttributeError):
@@ -117,9 +133,8 @@ with mp_face_mesh.FaceMesh(
             direction = "unknown"
             
         # 방향 및 각도 텍스트 표시
-        # Yaw가 계산된 경우에만 텍스트 표시
-        if yaw is not None:
-            cv2.putText(image, f'{direction}  Yaw: {int(yaw)}', 
+        if yaw is not None and pitch is not None:
+            cv2.putText(image, f'{direction}  Yaw: {int(yaw)}, Pitch: {int(pitch)}', 
                         (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2, cv2.LINE_AA)
         else:
             cv2.putText(image, f'{direction}', 
